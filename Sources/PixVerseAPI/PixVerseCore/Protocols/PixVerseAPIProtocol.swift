@@ -1,0 +1,21 @@
+//
+//  File.swift
+//  PixVerseAPI
+//
+//  Created by катенька on 14.07.2025.
+//
+
+import Foundation
+import RxSwift
+import Alamofire
+
+public protocol PixVerseAPIProtocol {
+    func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce>
+    func generatePhoto(from prompt: String, userID: String, appBundle: String) -> Observable<PhotoResult>
+    func generatePhoto(from prompt: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<PhotoResult>
+    func generateVideo(from prompt: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask>
+    func generateVideo(from prompt: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask>
+    func generateVideo(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask>
+    func checkStatus(requestID: String) -> Observable<VideoResult>
+    func handleVideoGenerationStatus(videoID: String) -> Observable<(String, VideoResult)>
+}
