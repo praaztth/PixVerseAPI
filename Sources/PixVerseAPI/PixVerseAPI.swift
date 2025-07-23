@@ -9,10 +9,18 @@ import RxAlamofire
 @available(iOS 16.0, *)
 public final class PixVerseAPI: PixVerseAPIProtocol {
     nonisolated(unsafe) public static let shared = PixVerseAPI()
+    
+    private let session: Session
     let pixVerseURL = "https://trust.coreapis.space/pixverse"
     let chatGPTURL = "https://trust.coreapis.space/chatgpt"
     
     let defaultHeaders: HTTPHeaders = [.accept("application/json")]
+    
+    init() {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 120
+        self.session = Session(configuration: configuration)
+    }
     
     public func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce> {
         let url = "\(pixVerseURL)/api/v1/get_templates/\(appBundle)"
@@ -108,7 +116,7 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         parameters: [String: String],
         headers: HTTPHeaders
     ) -> Observable<T> {
-        AF.request(
+        self.session.request(
             url,
             method: .post,
             parameters: parameters,
