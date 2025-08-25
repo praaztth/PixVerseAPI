@@ -24,7 +24,16 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
     
     public func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce> {
         let url = "\(pixVerseURL)/api/v1/get_templates/\(appBundle)"
-        return AF.request(url)
+        return session.request(url)
+            .validate()
+            .rx
+            .responseDecodable()
+            .map { $1 }
+    }
+    
+    public func fetchPhotoTemplates(appBundle: String) -> Observable<PhotoTemplateListResponce> {
+        let url = "\(chatGPTURL)/api/v1/get_templates/\(appBundle)"
+        return session.request(url)
             .validate()
             .rx
             .responseDecodable()
@@ -49,6 +58,17 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
             URLQueryItem(name: "user_id", value: userID),
             URLQueryItem(name: "app_id", value: appBundle),
             URLQueryItem(name: "prompt", value: prompt)
+        ])
+        let headers: HTTPHeaders = defaultHeaders
+        
+        return uploadMultipart(to: url, imageData: data, imageName: imageName, headers: headers)
+    }
+    
+    public func generatePhoto(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<PhotoResult> {
+        let url = URL(string: "\(chatGPTURL)/api/v1/template2photo")!.appending(queryItems: [
+            URLQueryItem(name: "user_id", value: userID),
+            URLQueryItem(name: "app_id", value: appBundle),
+            URLQueryItem(name: "id", value: id)
         ])
         let headers: HTTPHeaders = defaultHeaders
         
@@ -172,18 +192,29 @@ public final class MockPixVerseAPI: PixVerseAPIProtocol {
     private var createdVideos: [Int: VideoResult] = [:]
     private let disposeBag = DisposeBag()
     
-    public func fetchTemplates(appBundle: String) -> RxSwift.Observable<TemplateListResponce> {
+    public func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce> {
         Observable.empty()
     }
     
-    public func generatePhoto(from prompt: String, userID: String, appBundle: String) -> RxSwift.Observable<PhotoResult> {
+    public func fetchPhotoTemplates(appBundle: String) -> Observable<PhotoTemplateListResponce> {
+        Observable.empty()
+    }
+    
+    public func generatePhoto(from prompt: String, userID: String, appBundle: String) -> Observable<PhotoResult> {
         Observable<Int>.timer(.seconds(3), scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
             .map { _ in
                 PhotoResult(url: "https://trust.coreapis.space/static/large/bc16f124b6bb4370883051b7262f687e.jpg", detail: "Success")
             }
     }
     
-    public func generatePhoto(from prompt: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> RxSwift.Observable<PhotoResult> {
+    public func generatePhoto(from prompt: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<PhotoResult> {
+        Observable<Int>.timer(.seconds(3), scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
+            .map { _ in
+                PhotoResult(url: "https://trust.coreapis.space/static/large/bc16f124b6bb4370883051b7262f687e.jpg", detail: "Success")
+            }
+    }
+    
+    public func generatePhoto(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<PhotoResult> {
         Observable<Int>.timer(.seconds(3), scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
             .map { _ in
                 PhotoResult(url: "https://trust.coreapis.space/static/large/bc16f124b6bb4370883051b7262f687e.jpg", detail: "Success")
