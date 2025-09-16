@@ -10,5 +10,6 @@ import Foundation
 public struct TemplateListResponce: Codable {
     public let app_id: String
     public let templates: [Template]
+    public let styles: [Style]
     public let id: Int
 }

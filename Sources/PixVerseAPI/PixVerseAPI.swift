@@ -6,6 +6,18 @@ import Alamofire
 import RxSwift
 import RxAlamofire
 
+enum PixVerseError: LocalizedError {
+    case tokensOverError(detail: String)
+    case generationError(detail: String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .tokensOverError(let detail), .generationError(let detail):
+            return detail
+        }
+    }
+}
+
 @available(iOS 16.0, *)
 public final class PixVerseAPI: PixVerseAPIProtocol {
     nonisolated(unsafe) public static let shared = PixVerseAPI()
@@ -16,10 +28,39 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
     
     let defaultHeaders: HTTPHeaders = [.accept("application/json")]
     
+    public static let validateError: @Sendable (URLRequest?, HTTPURLResponse, Data?) -> Request.ValidationResult = { request, response, data in
+        let statusCode = response.statusCode
+        guard (200...299).contains(statusCode) else {
+            if let decodedError = try? JSONDecoder().decode(ErrorResponse.self, from: data ?? Data()) {
+                return .failure(PixVerseError.generationError(detail: decodedError.detail))
+            }
+            
+            print("\(#file): validateError: \(String(data: data ?? Data(), encoding: .utf8))")
+            return .failure(AFError.responseValidationFailed(reason: .unacceptableStatusCode(code: statusCode)))
+        }
+        
+        return .success(())
+    }
+    
     init() {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 120
         self.session = Session(configuration: configuration)
+    }
+    
+    public func fetchTokensCount(userId: String, appId: String) -> Observable<TokensBalanceResponse> {
+        let url = "\(pixVerseURL)/pixverse/api/v1/users/\(userId)/tokens"
+        
+        let params: [String: String] = [
+            "appId": appId
+        ]
+        
+        return session.request(url, method: .get, parameters: params)
+            .validate()
+            .cURLDescription { print($0) }
+            .rx
+            .responseDecodable()
+            .map { $1 }
     }
     
     public func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce> {
@@ -61,7 +102,7 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         ])
         let headers: HTTPHeaders = defaultHeaders
         
-        return uploadMultipart(to: url, imageData: data, imageName: imageName, headers: headers)
+        return uploadMultipartFromData(to: url, data: data, fileName: imageName, mimeType: "image/png", paramName: "image", headers: headers)
     }
     
     public func generatePhoto(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<PhotoResult> {
@@ -72,7 +113,7 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         ])
         let headers: HTTPHeaders = defaultHeaders
         
-        return uploadMultipart(to: url, imageData: data, imageName: imageName, headers: headers)
+        return uploadMultipartFromData(to: url, data: data, fileName: imageName, mimeType: "image/png", paramName: "image", headers: headers)
     }
     
     public func generateVideo(from prompt: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask> {
@@ -95,7 +136,7 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         ])
         let headers: HTTPHeaders = defaultHeaders
         
-        return uploadMultipart(to: url, imageData: data, imageName: imageName, headers: headers)
+        return uploadMultipartFromData(to: url, data: data, fileName: imageName, mimeType: "image/png", paramName: "image", headers: headers)
     }
     
     public func generateVideo(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask> {
@@ -106,7 +147,18 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         ])
         let headers: HTTPHeaders = defaultHeaders
         
-        return uploadMultipart(to: url, imageData: data, imageName: imageName, headers: headers)
+        return uploadMultipartFromData(to: url, data: data, fileName: imageName, mimeType: "image/png", paramName: "image", headers: headers)
+    }
+    
+    public func generateVideo(usingVideo fileURL: URL, videoName: String, byStyleID id: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask> {
+        let url = URL(string: "\(pixVerseURL)/api/v1/video2video")!.appending(queryItems: [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "appId", value: appBundle),
+            URLQueryItem(name: "templateId", value: id)
+        ])
+        let headers: HTTPHeaders = defaultHeaders
+        
+        return uploadMultipartFromFileURL(to: url, fileURL: fileURL, fileName: videoName, headers: headers)
     }
     
     public func checkStatus(requestID: String) -> Observable<VideoResult> {
@@ -143,22 +195,24 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
             encoder: URLEncodedFormParameterEncoder(destination: .queryString),
             headers: headers
         )
-            .validate()
+            .validate(PixVerseAPI.validateError)
             .cURLDescription { print($0) }
             .rx
             .responseDecodable()
             .map { $1 }
     }
     
-    func uploadMultipart<T: Decodable>(
+    func uploadMultipartFromData<T: Decodable>(
         to url: URL,
-        imageData: Data,
-        imageName: String,
+        data: Data,
+        fileName: String,
+        mimeType: String,
+        paramName: String,
         headers: HTTPHeaders
     ) -> Observable<T> {
         RxAlamofire.upload(
             multipartFormData: { formData in
-                formData.append(imageData, withName: "image", fileName: imageName, mimeType: "image/png")
+                formData.append(data, withName: paramName, fileName: fileName, mimeType: mimeType)
             },
             to: url,
             method: .post,
@@ -167,7 +221,31 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         .flatMap { uploadRequest in
             uploadRequest
                 .cURLDescription { print($0) }
-                .validate()
+                .validate(PixVerseAPI.validateError)
+                .rx
+                .responseDecodable()
+                .map { $1 }
+        }
+    }
+    
+    func uploadMultipartFromFileURL<T: Decodable>(
+        to url: URL,
+        fileURL: URL,
+        fileName: String,
+        headers: HTTPHeaders
+    ) -> Observable<T> {
+        RxAlamofire.upload(
+            multipartFormData: { formData in
+                formData.append(fileURL, withName: "video")
+            },
+            to: url,
+            method: .post,
+            headers: headers
+        )
+        .flatMap { uploadRequest in
+            uploadRequest
+                .cURLDescription { print($0) }
+                .validate(PixVerseAPI.validateError)
                 .rx
                 .responseDecodable()
                 .map { $1 }
@@ -191,6 +269,10 @@ public final class MockPixVerseAPI: PixVerseAPIProtocol {
     
     private var createdVideos: [Int: VideoResult] = [:]
     private let disposeBag = DisposeBag()
+    
+    public func fetchTokensCount(userId: String, appId: String) -> Observable<TokensBalanceResponse> {
+        Observable.empty()
+    }
     
     public func fetchTemplates(appBundle: String) -> Observable<TemplateListResponce> {
         Observable.empty()
@@ -242,6 +324,10 @@ public final class MockPixVerseAPI: PixVerseAPIProtocol {
     }
     
     public func generateVideo(byTemplateID id: String, usingImage data: Data, imageName: String, userID: String, appBundle: String) -> RxSwift.Observable<VideoGenerationTask> {
+        self.generateVideo(from: "", userID: "", appBundle: "")
+    }
+    
+    public func generateVideo(usingVideo url: URL, videoName: String, byStyleID id: String, userID: String, appBundle: String) -> Observable<VideoGenerationTask> {
         self.generateVideo(from: "", userID: "", appBundle: "")
     }
     
