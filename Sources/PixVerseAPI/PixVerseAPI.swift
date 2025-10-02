@@ -6,11 +6,11 @@ import Alamofire
 import RxSwift
 import RxAlamofire
 
-enum PixVerseError: LocalizedError {
+public enum PixVerseError: LocalizedError {
     case tokensOverError(detail: String)
     case generationError(detail: String)
     
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .tokensOverError(let detail), .generationError(let detail):
             return detail
