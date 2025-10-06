@@ -32,7 +32,13 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         let statusCode = response.statusCode
         guard (200...299).contains(statusCode) else {
             if let decodedError = try? JSONDecoder().decode(ErrorResponse.self, from: data ?? Data()) {
-                return .failure(PixVerseError.generationError(detail: decodedError.detail))
+                let detail = decodedError.detail
+                
+                if detail == "All user\'s credits used. Upgrade your subscribtions or top up" {
+                    return .failure(PixVerseError.tokensOverError(detail: detail))
+                } else {
+                    return .failure(PixVerseError.generationError(detail: detail))
+                }
             }
             
             print("\(#file): validateError: \(String(data: data ?? Data(), encoding: .utf8))")
