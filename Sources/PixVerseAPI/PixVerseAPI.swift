@@ -216,14 +216,26 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         paramName: String,
         headers: HTTPHeaders
     ) -> Observable<T> {
-        RxAlamofire.upload(
+        guard var urlRequest = try? URLRequest(url: url, method: .post, headers: headers) else {
+            print("\(#file) \(#function): Could not create URLRequest")
+            return Observable.error(NSError(domain: "", code: -1))
+        }
+        urlRequest.timeoutInterval = 120
+        
+        return RxAlamofire.upload(
             multipartFormData: { formData in
                 formData.append(data, withName: paramName, fileName: fileName, mimeType: mimeType)
             },
-            to: url,
-            method: .post,
-            headers: headers
+            urlRequest: urlRequest
         )
+//        RxAlamofire.upload(
+//            multipartFormData: { formData in
+//                formData.append(data, withName: paramName, fileName: fileName, mimeType: mimeType)
+//            },
+//            to: url,
+//            method: .post,
+//            headers: headers
+//        )
         .flatMap { uploadRequest in
             uploadRequest
                 .cURLDescription { print($0) }
@@ -240,14 +252,26 @@ public final class PixVerseAPI: PixVerseAPIProtocol {
         fileName: String,
         headers: HTTPHeaders
     ) -> Observable<T> {
-        RxAlamofire.upload(
+        guard var urlRequest = try? URLRequest(url: url, method: .post, headers: headers) else {
+            print("\(#file) \(#function): Could not create URLRequest")
+            return Observable.error(NSError(domain: "", code: -1))
+        }
+        urlRequest.timeoutInterval = 120
+        
+        return RxAlamofire.upload(
             multipartFormData: { formData in
                 formData.append(fileURL, withName: "video")
             },
-            to: url,
-            method: .post,
-            headers: headers
+            urlRequest: urlRequest
         )
+//        RxAlamofire.upload(
+//            multipartFormData: { formData in
+//                formData.append(fileURL, withName: "video")
+//            },
+//            to: url,
+//            method: .post,
+//            headers: headers
+//        )
         .flatMap { uploadRequest in
             uploadRequest
                 .cURLDescription { print($0) }
